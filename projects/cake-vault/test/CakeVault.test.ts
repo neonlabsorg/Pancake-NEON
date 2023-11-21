@@ -227,7 +227,7 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
     assert.equal((await cake.balanceOf(user3)).toString(), ether("100").toString());
 
     // Time travel to start of rewards
-    await time.advanceBlockTo(rewardsStartBlock);
+    // await time.advanceBlockTo(rewardsStartBlock);
 
     // Rewards started, so rewards are earned
     // 1 share should be > 1 cake, pricePerFullShare should equal be > 1
