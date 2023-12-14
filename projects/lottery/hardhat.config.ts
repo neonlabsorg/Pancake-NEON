@@ -25,7 +25,7 @@ const neonlabs: NetworkUserConfig = {
   chainId: parseInt(process.env.NEON_CHAIN_ID) || 111,
   allowUnlimitedContractSize: false,
   timeout: 100000000,
-  gas: 120000000,
+  gas: 'auto',
   blockGasLimit: 0x1fffffffffffff,
 };
 
