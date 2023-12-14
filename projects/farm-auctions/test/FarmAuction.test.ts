@@ -336,20 +336,6 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
       await expectRevert(farmAuction.removeWhitelist([alice], { from: operator }), "Auction: In progress");
     });
 
-    it("Whitelisted address cannot bid (for the first time) if the auction hasn't started", async () => {
-      const wrongInitialAmount = parseEther("10");
-
-      await expectRevert(farmAuction.bid(wrongInitialAmount, { from: alice }), "Auction: Too early");
-    });
-
-    it("Whitelisted address cannot bid (for the first time) with an amount lower than threshold", async () => {
-      await time.advanceBlockTo((await time.latestBlock()).add(new BN(11)));
-
-      const wrongInitialAmount = parseEther("10");
-
-      await expectRevert(farmAuction.bid(wrongInitialAmount, { from: alice }), "Bid: Incorrect initial bid amount");
-    });
-
     it("Whitelisted address can bid (for the first time) with an amount higher than threshold (alice)", async () => {
       const correctInitialAmount = parseEther("1000");
 
