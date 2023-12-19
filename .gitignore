@@ -33,3 +33,5 @@ bsc-library
 Flatten*
 
 .idea
+
+report_*.json
