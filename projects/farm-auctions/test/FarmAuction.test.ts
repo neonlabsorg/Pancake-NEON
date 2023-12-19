@@ -1,17 +1,26 @@
-import { artifacts, contract } from "hardhat";
+import { artifacts, contract, ethers } from "hardhat";
 import { parseEther } from "ethers/lib/utils";
 import { BN, constants, expectEvent, expectRevert, time } from "@openzeppelin/test-helpers";
 import { assert } from "chai";
 import { gasToBNB, gasToUSD } from "./utils/gas";
+const fs = require("fs").promises;
 
 const FarmAuction = artifacts.require("FarmAuction");
 const MockCake = artifacts.require("./test/MockCake");
+
+type ReportItem = { [key: string]: string | number };
+let report = {
+  name: "Pancake cake-vault",
+  actions: [] as ReportItem[],
+};
 
 contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
   let mockCake, fakeCake, farmAuction;
   let result: any;
 
   let startBlock, endBlock;
+
+  let gasPrice;
 
   before(async () => {
     mockCake = await MockCake.new("PancakeSwap", "Cake", parseEther("100000"), { from: owner });
@@ -27,6 +36,11 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
     await mockCake.approve(farmAuction.address, constants.MAX_UINT256, { from: bob });
 
     await fakeCake.transfer(farmAuction.address, parseEther("100"), { from: david });
+    gasPrice = await ethers.provider.getGasPrice();
+  });
+
+  after(async () => {
+    await fs.writeFile("report_farm-auctions.json", JSON.stringify(report));
   });
 
   describe("Contract cannot be deployed with wrong parameters", async () => {
@@ -75,6 +89,13 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
         )}) - gasUsed: ${result.receipt.gasUsed}`
       );
 
+      report["actions"].push({
+        name: "Cost to whitelist (4) addresses",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
+
       assert.equal(result.logs[0].args.account, alice);
       assert.equal(result.logs[1].args.account, bob);
       assert.equal(result.logs[2].args.account, carol);
@@ -107,6 +128,13 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
           result.receipt.gasUsed
         )}) - gasUsed: ${result.receipt.gasUsed}`
       );
+
+      report["actions"].push({
+        name: "Cost to un-whitelist (1) address",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
 
       expectEvent(result, "WhitelistRemove", { account: david });
     });
@@ -291,6 +319,13 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
         )}) - gasUsed: ${result.receipt.gasUsed}`
       );
 
+      report["actions"].push({
+        name: "Cost to start the auction",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
+
       expectEvent(result, "AuctionStart", {
         auctionId: "1",
         startBlock: startBlock,
@@ -374,6 +409,13 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
           result.receipt.gasUsed
         )}) - gasUsed: ${result.receipt.gasUsed}`
       );
+
+      report["actions"].push({
+        name: "Cost to bid (initial)",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
     });
 
     it("Whitelisted address can bid again, without restrictions", async () => {
@@ -394,6 +436,13 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
           result.receipt.gasUsed
         )}) - gasUsed: ${result.receipt.gasUsed}`
       );
+
+      report["actions"].push({
+        name: "Cost to bid",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
     });
 
     it("Whitelisted address cannot bid with a wrong modulo (0.05)", async () => {
@@ -498,6 +547,13 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
           result.receipt.gasUsed
         )}) - gasUsed: ${result.receipt.gasUsed}`
       );
+
+      report["actions"].push({
+        name: "Cost to close the auction",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
 
       expectEvent(result, "AuctionClose", {
         auctionId: "1",
@@ -699,6 +755,13 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
         )}) - gasUsed: ${result.receipt.gasUsed}`
       );
 
+      report["actions"].push({
+        name: "Cost to start the auction",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
+
       expectEvent(result, "AuctionStart", {
         auctionId: "2",
         startBlock: startBlock,
@@ -718,6 +781,13 @@ contract("FarmAuction", ([owner, operator, alice, bob, carol, david, eve]) => {
           result.receipt.gasUsed
         )}) - gasUsed: ${result.receipt.gasUsed}`
       );
+
+      report["actions"].push({
+        name: "Cost to close the auction",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
 
       expectEvent(result, "AuctionClose", { auctionId: "2", numberParticipants: "0" });
     });

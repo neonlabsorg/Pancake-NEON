@@ -1,12 +1,19 @@
 import { parseEther } from "ethers/lib/utils";
-import { artifacts, contract } from "hardhat";
+import { artifacts, contract, ethers } from "hardhat";
 import { BN, expectEvent, time } from "@openzeppelin/test-helpers";
+import { promises as fs } from "fs";
 
 const MockERC20 = artifacts.require("./utils/MockERC20.sol");
 const MockRandomNumberGenerator = artifacts.require("./utils/MockRandomNumberGenerator.sol");
 const PancakeSwapLottery = artifacts.require("./PancakeSwapLottery.sol");
 
 const PRICE_BNB = 400;
+
+type ReportItem = { [key: string]: string | number };
+let report = {
+  name: "Pancake cake-vault",
+  actions: [] as ReportItem[],
+};
 
 function gasToBNB(gas: number, gwei: number = 5) {
   const num = gas * gwei * 10 ** -9;
@@ -36,6 +43,8 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
   let result: any;
   let endTime;
 
+  let gasPrice;
+
   before(async () => {
     // Deploy MockCake
     mockCake = await MockERC20.new("Mock CAKE", "CAKE", _totalInitSupply);
@@ -47,6 +56,12 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
     lottery = await PancakeSwapLottery.new(mockCake.address, randomNumberGenerator.address, { from: alice });
 
     await randomNumberGenerator.setLotteryAddress(lottery.address, { from: alice });
+
+    gasPrice = await ethers.provider.getGasPrice();
+  });
+
+  after(async () => {
+    await fs.writeFile("report_lottery.json", JSON.stringify(report));
   });
 
   describe("LOTTERY #1 - CUSTOM RANDOMNESS", async () => {
@@ -93,6 +108,13 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           result.receipt.gasUsed
         )})`
       );
+
+      report["actions"].push({
+        name: "Cost to start the lottery",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
     });
 
     it("Carol buys 1 ticket", async () => {
@@ -106,6 +128,13 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           result.receipt.gasUsed
         )})`
       );
+
+      report["actions"].push({
+        name: "Cost to buy a stand-alone ticket",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
         from: carol,
@@ -123,6 +152,13 @@ contract("Lottery V2", ([alice, bob, carol, david, erin, operator, treasury, inj
           result.receipt.gasUsed
         )})`
       );
+
+      report["actions"].push({
+        name: "Cost to do injection",
+        usedGas: result.receipt["gasUsed"].toString(),
+        gasPrice: gasPrice.toString(),
+        tx: result.receipt["transactionHash"],
+      });
 
       expectEvent.inTransaction(result.receipt.transactionHash, mockCake, "Transfer", {
         from: alice,

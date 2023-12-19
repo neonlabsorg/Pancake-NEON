@@ -1,6 +1,7 @@
-import { artifacts, contract } from "hardhat";
+import { artifacts, contract, ethers } from "hardhat";
 import { ether, time, constants, BN, expectRevert, expectEvent } from "@openzeppelin/test-helpers";
 import { assert } from "chai";
+import { promises as fs } from "fs";
 
 const CakeToken = artifacts.require("CakeToken");
 const SyrupBar = artifacts.require("SyrupBar");
@@ -11,10 +12,17 @@ const MockERC20 = artifacts.require("MockERC20");
 
 const REWARDS_START_BLOCK = 300;
 
+type ReportItem = { [key: string]: string | number };
+let report = {
+  name: "Pancake cake-vault",
+  actions: [] as ReportItem[],
+};
+
 contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester]) => {
   let vault, masterchef, cake, syrup, rewardsStartBlock;
   let user1Shares, user2Shares, user3Shares;
   let pricePerFullShare;
+  let gasPrice;
 
   async function zeroFeesSetup() {
     // Set fees to zero
@@ -50,6 +58,12 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
     await cake.approve(vault.address, ether("1000"), { from: user3 });
     await cake.transferOwnership(masterchef.address, { from: owner });
     await syrup.transferOwnership(masterchef.address, { from: owner });
+
+    gasPrice = await ethers.provider.getGasPrice();
+  });
+
+  after(async () => {
+    await fs.writeFile("report_cake-vault.json", JSON.stringify(report));
   });
 
   it("Initialize", async () => {
@@ -339,6 +353,13 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
 
     assert.equal((await vault.available()).toString(), 0);
     assert.equal((await vault.balanceOf()).toString(), balance.add(pendingCake).toString());
+
+    report["actions"].push({
+      name: "Harvest",
+      usedGas: tx["gasUsed"].toString(),
+      gasPrice: gasPrice.toString(),
+      tx: tx["transactionHash"],
+    });
   });
 
   it("Should harvest with performance and call fees", async () => {
@@ -366,6 +387,13 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
       callFee: harvesterFee,
     });
 
+    report["actions"].push({
+      name: "Harvest",
+      usedGas: tx["gasUsed"].toString(),
+      gasPrice: gasPrice.toString(),
+      tx: tx["transactionHash"],
+    });
+
     assert.equal((await cake.balanceOf(treasury)).toString(), treasuryFee.toString());
     assert.equal((await cake.balanceOf(harvester)).toString(), harvesterFee.toString());
     assert.equal(await vault.available(), 0);
@@ -391,6 +419,13 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
       sender: harvester,
       performanceFee: treasuryFee,
       callFee: harvesterFee,
+    });
+
+    report["actions"].push({
+      name: "Harvest",
+      usedGas: tx["gasUsed"].toString(),
+      gasPrice: gasPrice.toString(),
+      tx: tx["transactionHash"],
     });
 
     assert.equal((await cake.balanceOf(treasury)).toString(), treasuryTotal.add(treasuryFee).toString());
@@ -466,9 +501,23 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
     expectEvent(tx, "Pause");
     assert.equal(await vault.paused(), true);
 
+    report["actions"].push({
+      name: "pause",
+      usedGas: tx["gasUsed"].toString(),
+      gasPrice: gasPrice.toString(),
+      tx: tx["transactionHash"],
+    });
+
     tx = await vault.unpause({ from: admin });
     expectEvent(tx, "Unpause");
     assert.equal(await vault.paused(), false);
+
+    report["actions"].push({
+      name: "unpause",
+      usedGas: tx["gasUsed"].toString(),
+      gasPrice: gasPrice.toString(),
+      tx: tx["transactionHash"],
+    });
   });
 
   it("Should disallow deposits and harvest when paused", async () => {
