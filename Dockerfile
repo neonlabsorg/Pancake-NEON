@@ -7,6 +7,7 @@ RUN apt-get update && apt-get install -y \
 WORKDIR /usr/src/app
 
 COPY package*.json ./
+COPY yarn.lock ./
 RUN yarn install --frozen-lockfile
 
 COPY ./docker/entrypoint.sh /usr/local/bin
