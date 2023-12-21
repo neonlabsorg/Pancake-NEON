@@ -6,12 +6,10 @@ RUN apt-get update && apt-get install -y \
 
 WORKDIR /usr/src/app
 
-COPY package*.json ./
-COPY yarn.lock ./
+COPY . ./
+
 RUN yarn install --frozen-lockfile
 ENV PATH /usr/src/app/node_modules/.bin:$PATH
+RUN lerna exec npm install --stream
 
-COPY ./docker/* /usr/local/bin/
-ENTRYPOINT ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
-
-COPY . ./
+ENTRYPOINT ["/bin/sh", "/usr/src/app/docker/entrypoint.sh"]
