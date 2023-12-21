@@ -9,8 +9,9 @@ WORKDIR /usr/src/app
 COPY package*.json ./
 COPY yarn.lock ./
 RUN yarn install --frozen-lockfile
+ENV PATH /usr/src/app/node_modules/.bin:$PATH
 
-COPY ./docker/entrypoint.sh /usr/local/bin
+COPY ./docker/* /usr/local/bin/
 ENTRYPOINT ["/bin/sh", "/usr/local/bin/entrypoint.sh"]
 
 COPY . ./
