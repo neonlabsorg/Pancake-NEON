@@ -10,7 +10,7 @@ const MockCake = artifacts.require("./test/MockCake");
 
 type ReportItem = { [key: string]: string | number };
 let report = {
-  name: "Pancake cake-vault",
+  name: "Pancake farm-auctions",
   actions: [] as ReportItem[],
 };
 

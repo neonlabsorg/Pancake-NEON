@@ -11,7 +11,7 @@ const PRICE_BNB = 400;
 
 type ReportItem = { [key: string]: string | number };
 let report = {
-  name: "Pancake cake-vault",
+  name: "Pancake lottery",
   actions: [] as ReportItem[],
 };
 

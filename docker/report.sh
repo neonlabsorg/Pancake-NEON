@@ -1,2 +1,2 @@
 #!/bin/sh
-find . -name 'report-*.json' -exec jq -s 'reduce .[] as $item ({}; . * $item)' {} + > report.json
+find . -name 'report_*.json' -exec jq -s '.' {} + > report.json
