@@ -9,8 +9,6 @@ import "dotenv/config";
 
 import path = require("path");
 
-require('dotenv').config({path: path.resolve(__dirname, "../../.env")});
-
 const bscTestnet: NetworkUserConfig = {
   url: "https://data-seed-prebsc-1-s1.binance.org:8545/",
   chainId: 97,
@@ -28,7 +26,7 @@ const neonlabs: NetworkUserConfig = {
   accounts: process.env.NEON_ACCOUNTS.split(","),
   chainId: parseInt(process.env.NEON_CHAIN_ID) || 111,
   allowUnlimitedContractSize: false,
-  timeout: 100000000,
+  timeout: 60000,
 };
 
 const config: HardhatUserConfig = {
