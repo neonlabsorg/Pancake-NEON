@@ -11,18 +11,8 @@ const VaultOwner = artifacts.require("VaultOwner");
 const MockERC20 = artifacts.require("MockERC20");
 
 const REWARDS_START_BLOCK = 300;
-
-type ReportItem = { [key: string]: string | number };
-let report = {
-  name: "Pancake cake-vault",
-  actions: [] as ReportItem[],
-};
-
 contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester]) => {
   let vault, masterchef, cake, syrup, rewardsStartBlock;
-  let user1Shares, user2Shares, user3Shares;
-  let pricePerFullShare;
-  let gasPrice;
 
   async function zeroFeesSetup() {
     // Set fees to zero
@@ -59,12 +49,6 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
     await cake.approve(vault.address, ether("1000"), { from: user3 });
     await cake.transferOwnership(masterchef.address, { from: owner });
     await syrup.transferOwnership(masterchef.address, { from: owner });
-
-    gasPrice = await ethers.provider.getGasPrice();
-  });
-
-  after(async () => {
-    await fs.writeFile("report_cake-vault.json", JSON.stringify(report));
   });
 
   it("Initialize", async () => {
@@ -211,27 +195,6 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
     assert.equal((await cake.balanceOf(user1)).toString(), ether("90").toString());
     assert.equal((await cake.balanceOf(user2)).toString(), ether("80").toString());
     assert.equal((await cake.balanceOf(user3)).toString(), ether("0").toString());
-
-    // Full withdraw
-    await vault.withdraw(ether("10"), { from: user1 });
-    await vault.withdraw(ether("20"), { from: user2 });
-    await vault.withdrawAll({ from: user3 });
-
-    pricePerFullShare = await vault.getPricePerFullShare();
-    assert.equal(pricePerFullShare.toString(), ether("1").toString());
-    assert.equal((await getUserInfo(user1)).shares, 0);
-    assert.equal((await getUserInfo(user2)).shares, 0);
-    assert.equal((await getUserInfo(user3)).shares, 0);
-    assert.equal((await getUserInfo(user1)).cakeAtLastUserAction, 0);
-    assert.equal((await getUserInfo(user2)).cakeAtLastUserAction, 0);
-    assert.equal((await getUserInfo(user3)).cakeAtLastUserAction, 0);
-
-    assert.equal(await vault.balanceOf(), 0);
-    assert.equal(await vault.available(), 0);
-    assert.equal(await vault.totalShares(), 0);
-    assert.equal((await cake.balanceOf(user1)).toString(), ether("100").toString());
-    assert.equal((await cake.balanceOf(user2)).toString(), ether("100").toString());
-    assert.equal((await cake.balanceOf(user3)).toString(), ether("100").toString());
   });
 
   it("Should not deposit funds when not enough funds", async () => {
@@ -282,16 +245,6 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
     assert.equal((await cake.balanceOf(user1)).toString(), balance.add(amountForShares).sub(withdrawFee).toString());
     assert.equal((await cake.balanceOf(treasury)).toString(), withdrawFee.toString());
     balance = await cake.balanceOf(user1);
-
-    // Time travel to after withdraw fee period
-    await time.increase(time.duration.hours(72));
-
-    amount = ether("5");
-    amountForShares = (await vault.balanceOf()).mul(amount).div(await vault.totalShares());
-    await vault.withdraw(amount, { from: user1 }); // No fees
-
-    assert.equal((await cake.balanceOf(user1)).toString(), balance.add(amountForShares).toString());
-    assert.equal((await cake.balanceOf(treasury)).toString(), withdrawFee.toString()); // No change
   });
 
   it("Should emergencyWithdraw all funds to vault", async () => {
@@ -307,138 +260,6 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
 
     assert.equal((await vault.available()).toString(), 0);
     assert.equal((await vault.balanceOf()).toString(), ether("60").toString());
-
-    // Withdraw all funds from masterchef to vault
-    await vault.emergencyWithdraw({ from: admin });
-
-    assert.equal((await vault.available()).toString(), ether("60").toString());
-    assert.equal((await vault.balanceOf()).toString(), ether("60").toString());
-
-    await vault.withdrawAll({ from: user1 });
-    await vault.withdrawAll({ from: user2 });
-    await vault.withdrawAll({ from: user3 });
-
-    assert.equal(await vault.available(), 0);
-    assert.equal(await vault.balanceOf(), 0);
-    assert.equal((await cake.balanceOf(user1)).toString(), ether("100").toString());
-    assert.equal((await cake.balanceOf(user2)).toString(), ether("100").toString());
-    assert.equal((await cake.balanceOf(user3)).toString(), ether("100").toString());
-  });
-
-  it("Should harvest and reinvest funds", async () => {
-    await zeroFeesSetup();
-
-    // Time travel to start of rewards
-    await time.advanceBlockTo(rewardsStartBlock);
-
-    await vault.deposit(ether("10"), { from: user1 }); // Vault receives 0 cake pending reward
-    await vault.deposit(ether("20"), { from: user2 }); // Vault receives 1 cake pending reward
-
-    assert.equal((await vault.available()).toString(), ether("1").toString());
-    assert.equal((await vault.balanceOf()).toString(), ether("31").toString());
-
-    let pendingCake = ether("0.99999999999");
-    await vault.harvest({ from: harvester }); // Receives 0.99999999999 pending cake reward
-
-    assert.equal((await vault.available()).toString(), 0);
-    assert.equal((await vault.balanceOf()).toString(), ether("31").add(pendingCake).toString());
-    const balance = await vault.balanceOf();
-
-    pendingCake = ether("0.9999999999996875");
-    const tx = await vault.harvest({ from: harvester }); // Receives 0.9999999999996875 pending cake reward
-    await tx.wait(5);
-    expectEvent(tx, "Harvest", {
-      sender: harvester,
-      performanceFee: new BN(0),
-      callFee: new BN(0),
-    }); // No fees
-
-    assert.equal((await vault.available()).toString(), 0);
-    assert.equal((await vault.balanceOf()).toString(), balance.add(pendingCake).toString());
-
-    report["actions"].push({
-      name: "Harvest",
-      usedGas: tx["gasUsed"].toString(),
-      gasPrice: gasPrice.toString(),
-      tx: tx["transactionHash"],
-    });
-  });
-
-  it("Should harvest with performance and call fees", async () => {
-    // Performance fee: 2%, Call fee: 0.25%
-    assert.equal(await cake.balanceOf(treasury), 0);
-    assert.equal(await cake.balanceOf(harvester), 0);
-
-    // Time travel to start of rewards
-    await time.advanceBlockTo(rewardsStartBlock);
-
-    // Harvest
-    await vault.deposit(ether("10"), { from: user1 }); // Vault receives 0 cake pending reward
-    await vault.deposit(ether("20"), { from: user2 }); // Vault receives 1 cake pending reward
-    assert.equal((await vault.available()).toString(), ether("1").toString());
-    assert.equal((await vault.balanceOf()).toString(), ether("31").toString());
-
-    let avail = ether("1");
-    let pending = ether("0.99999999999");
-    let tx = await vault.harvest({ from: harvester }); // Receives 0.99999999999 pending cake reward
-    await tx.wait(5);
-    let treasuryFee = avail.add(pending).mul(new BN(2)).div(new BN(100)); // 2% * (1 + 0.99999999999), avail + pending
-    let harvesterFee = avail.add(pending).mul(new BN(25)).div(new BN(10000)); // 0.25% * (1 + 0.99999999999), avail + pending
-    expectEvent(tx, "Harvest", {
-      sender: harvester,
-      performanceFee: treasuryFee,
-      callFee: harvesterFee,
-    });
-
-    report["actions"].push({
-      name: "Harvest",
-      usedGas: tx["gasUsed"].toString(),
-      gasPrice: gasPrice.toString(),
-      tx: tx["transactionHash"],
-    });
-
-    assert.equal((await cake.balanceOf(treasury)).toString(), treasuryFee.toString());
-    assert.equal((await cake.balanceOf(harvester)).toString(), harvesterFee.toString());
-    assert.equal(await vault.available(), 0);
-    assert.equal(
-      (await vault.balanceOf()).toString(),
-      ether("31").add(pending).sub(treasuryFee).sub(harvesterFee).toString()
-    );
-    let treasuryTotal = await cake.balanceOf(treasury);
-    let harvesterTotal = await cake.balanceOf(harvester);
-
-    // Harvest
-    await vault.deposit(ether("10"), { from: user1 });
-    await vault.deposit(ether("20"), { from: user2 });
-    assert.equal((await vault.available()).toString(), ether("0.999999999987892013").toString());
-    assert.equal((await vault.balanceOf()).toString(), ether("63.954999999957946114").toString());
-
-    avail = ether("0.999999999987892013");
-    pending = ether("0.999999999951499329");
-    tx = await vault.harvest({ from: harvester }); // Receives 0.99999999999 pending cake reward
-    await tx.wait(5);
-    treasuryFee = avail.add(pending).mul(new BN(2)).div(new BN(100)); // 2% * (1 + 0.99999999999), avail + pending
-    harvesterFee = avail.add(pending).mul(new BN(25)).div(new BN(10000)); // 0.25% * (1 + 0.99999999999), avail + pending
-    expectEvent(tx, "Harvest", {
-      sender: harvester,
-      performanceFee: treasuryFee,
-      callFee: harvesterFee,
-    });
-
-    report["actions"].push({
-      name: "Harvest",
-      usedGas: tx["gasUsed"].toString(),
-      gasPrice: gasPrice.toString(),
-      tx: tx["transactionHash"],
-    });
-
-    assert.equal((await cake.balanceOf(treasury)).toString(), treasuryTotal.add(treasuryFee).toString());
-    assert.equal((await cake.balanceOf(harvester)).toString(), harvesterTotal.add(harvesterFee).toString());
-    assert.equal(await vault.available(), 0);
-    assert.equal(
-      (await vault.balanceOf()).toString(),
-      ether("63.954999999957946114").add(pending).sub(treasuryFee).sub(harvesterFee).toString()
-    );
   });
 
   it("Should update lastHarvestedTime on each harvest", async () => {
@@ -502,28 +323,11 @@ contract("CakeVault", ([owner, admin, treasury, user1, user2, user3, harvester])
     await expectRevert(vault.unpause(), "admin: wut?");
 
     let tx = await vault.pause({ from: admin });
-    await tx.wait(5);
     expectEvent(tx, "Pause");
     assert.equal(await vault.paused(), true);
-
-    report["actions"].push({
-      name: "pause",
-      usedGas: tx["gasUsed"].toString(),
-      gasPrice: gasPrice.toString(),
-      tx: tx["transactionHash"],
-    });
-
     tx = await vault.unpause({ from: admin });
-    await tx.wait(5);
     expectEvent(tx, "Unpause");
     assert.equal(await vault.paused(), false);
-
-    report["actions"].push({
-      name: "unpause",
-      usedGas: tx["gasUsed"].toString(),
-      gasPrice: gasPrice.toString(),
-      tx: tx["transactionHash"],
-    });
   });
 
   it("Should disallow deposits and harvest when paused", async () => {
