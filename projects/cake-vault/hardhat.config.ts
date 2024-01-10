@@ -7,6 +7,8 @@ import "hardhat-contract-sizer";
 import "solidity-coverage";
 import "dotenv/config";
 
+import path = require("path");
+
 const bscTestnet: NetworkUserConfig = {
   url: "https://data-seed-prebsc-1-s1.binance.org:8545/",
   chainId: 97,
@@ -19,12 +21,22 @@ const bscMainnet: NetworkUserConfig = {
   accounts: [process.env.KEY_MAINNET!],
 };
 
+const neonlabs: NetworkUserConfig = {
+  url: process.env.NEON_PROXY_URL,
+  accounts: process.env.NEON_ACCOUNTS.split(","),
+  chainId: parseInt(process.env.NEON_CHAIN_ID) || 111,
+  allowUnlimitedContractSize: false,
+  timeout: 60000,
+};
+
 const config: HardhatUserConfig = {
-  defaultNetwork: "hardhat",
+  defaultNetwork: "neonlabs",
   networks: {
     hardhat: {},
-    // testnet: bscTestnet,
-    // mainnet: bscMainnet,
+    neonlabs: neonlabs,
+  },
+  mocha: {
+    timeout: 100000000,
   },
   solidity: {
     version: "0.6.12",

@@ -19,12 +19,22 @@ const bscMainnet: NetworkUserConfig = {
   accounts: [process.env.KEY_MAINNET!],
 };
 
+const neonlabs: NetworkUserConfig = {
+  url: process.env.NEON_PROXY_URL,
+  accounts: process.env.NEON_ACCOUNTS.split(","),
+  chainId: parseInt(process.env.NEON_CHAIN_ID) || 111,
+  allowUnlimitedContractSize: false,
+  timeout: 100000000,
+};
+
 const config: HardhatUserConfig = {
-  defaultNetwork: "hardhat",
+  defaultNetwork: "neonlabs",
   networks: {
     hardhat: {},
-    // testnet: bscTestnet,
-    // mainnet: bscMainnet,
+    neonlabs: neonlabs,
+  },
+  mocha: {
+    timeout: 100000000,
   },
   solidity: {
     version: "0.6.12",
@@ -37,7 +47,7 @@ const config: HardhatUserConfig = {
   },
   paths: {
     sources: "./contracts",
-    tests: "./test",
+    tests: "./test/block",
     cache: "./cache",
     artifacts: "./artifacts",
   },
